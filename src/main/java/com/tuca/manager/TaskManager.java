@@ -1,6 +1,5 @@
 package com.tuca.manager;
 
-import com.tuca.Main;
 import com.tuca.connection.DatabaseManager;
 import com.tuca.model.Task;
 import lombok.RequiredArgsConstructor;
@@ -8,9 +7,6 @@ import lombok.RequiredArgsConstructor;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 @RequiredArgsConstructor
 public class TaskManager {
@@ -69,13 +65,12 @@ public class TaskManager {
         System.out.println("[Tasks] Updating tasks...");
         loadAllTasks().forEach(task -> {
             long now = System.currentTimeMillis();
-
-            if (task.getExpiryDate() < now && !task.getStatus().equalsIgnoreCase("ATRASADA")) {
+            if (task.getStatus().equalsIgnoreCase("Completa")) return;
+            if (task.getExpiryDate() < now) {
                 updateTaskStatus(task.getId(), "Atrasada");
                 System.out.println("[Updater] Tarefa ID " + task.getId() + " marcada como ATRASADA");
             }
         });
-
 
     }
 
