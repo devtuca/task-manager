@@ -8,7 +8,7 @@ PAUSE
 ```
 
 ### Download
-Clique <a href="https://github.com/devtuca/task-manager/archive/refs/heads/master.zip">aqui</a> para poder baixar o .zip do projeto.\
+Clique <a href="https://github.com/devtuca/task-manager/archive/refs/heads/master.zip">aqui</a> para poder baixar o .zip do projeto.\\
 ![Download](https://i.imgur.com/c1FK7F0.png)
 
 
