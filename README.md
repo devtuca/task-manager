@@ -8,7 +8,7 @@ PAUSE
 ```
 
 ### Download
-Clique aqui para poder baixar o .zip do projeto./
+Clique aqui para poder baixar o .zip do projeto.\
 ![Download](https://i.imgur.com/c1FK7F0.png)
 
 
@@ -19,5 +19,5 @@ Clique aqui para poder baixar o .zip do projeto./
 4. Abrir o aplicativo
 
 ### Dependencias
-   MySQL
-   JDK 17
+MySQL\
+JDK 17
