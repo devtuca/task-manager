@@ -2,6 +2,8 @@
 package com.tuca.connection;
 
 import lombok.Data;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -10,10 +12,11 @@ import java.util.List;
 @Data
 public class DatabaseManager {
 
-    private final String URL = "jdbc:mysql://localhost:3306/tasks?useSSL=false&serverTimezone=UTC";
-    private final String USER = "root";
-    private final String PASSWORD = "";
+    private String url = "jdbc:mysql://localhost:3306/tasks?useSSL=false&serverTimezone=UTC";
+    private String user = "root";
+    private String password = "";
     private Connection connection;
+    private final Logger log = LoggerFactory.getLogger(DatabaseManager.class);
 
     @FunctionalInterface
     public interface ResultSetMapper<T> {
@@ -22,10 +25,11 @@ public class DatabaseManager {
 
     public DatabaseManager() {
         try {
-            connection = DriverManager.getConnection(URL, USER, PASSWORD);
+            connection = DriverManager.getConnection(url, user, password);
         } catch (SQLException e) {
-            System.out.println("[MySQL] Connection Failed! Check output console");
-            e.printStackTrace();
+
+            log.error(e.getMessage());
+
         }
     }
 
@@ -73,10 +77,9 @@ public class DatabaseManager {
 
         try {
             execute(sql);
-            System.out.println("[MySQL] Connected to database and created table if not exists!");
+            log.info("Database connection established");
         } catch (SQLException e) {
-            e.printStackTrace();
-            System.out.println("[MySQL] Error connecting to database and created table!");
+            log.error(e.getMessage());
         }
     }
 
@@ -84,10 +87,10 @@ public class DatabaseManager {
         try {
             if (connection != null && !connection.isClosed()) {
                 connection.close();
-                System.out.println("[MySQL] Connection closed!");
+                log.info("Database connection closed");
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            log.error(e.getMessage());
         }
     }
 }

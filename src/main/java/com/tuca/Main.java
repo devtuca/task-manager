@@ -3,6 +3,8 @@ package com.tuca;
 import com.tuca.connection.DatabaseManager;
 import com.tuca.manager.TaskManager;
 import com.tuca.model.Task;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -14,7 +16,6 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 public class Main {
 
@@ -26,11 +27,19 @@ public class Main {
 
     private JTextField searchField;
     private JComboBox<String> statusFilterCombo;
+
+    private static final String DEFAULT_SEARCH_STRING = "Buscar por descrição, responsável ou ID...";
+    private static final String DEFAULT_FONT_NAME = "Segoe UI";
+    private static final String DEFAULT_SUCCESS_STRING = "Sucesso";
+    private static final String DEFAULT_COMPLETE_STRING = "Completa";
+
+
     private String currentStatusFilter = "TODAS";
     private String currentSearchText = "";
 
+    private static final Logger log = LoggerFactory.getLogger(Main.class);
+
     private static final Color PRIMARY_DARK = new Color(30, 41, 59);
-    private static final Color PRIMARY = new Color(51, 65, 85);
     private static final Color ACCENT = new Color(34, 197, 94);
     private static final Color ACCENT_HOVER = new Color(22, 163, 74);
     private static final Color BACKGROUND = new Color(248, 250, 252);
@@ -59,7 +68,7 @@ public class Main {
     }
 
     private void setupMainFrame() {
-        frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         frame.setSize(1100, 700);
         frame.setLayout(new BorderLayout(0, 0));
         frame.getContentPane().setBackground(BACKGROUND);
@@ -72,11 +81,11 @@ public class Main {
     }
 
     private void handleApplicationClose() {
-        System.out.println("[Tasks] Atualizando todas as tarefas antes de fechar...");
+        log.info("[Tasks] Trying close application.");
         refreshTasks();
         dbManager.closeConnection();
         frame.dispose();
-        System.out.println("[Tasks] Aplicação encerrada com segurança.");
+        log.info("[Tasks] Application closed");
         System.exit(0);
     }
 
@@ -107,11 +116,11 @@ public class Main {
         leftSection.setBackground(PRIMARY_DARK);
 
         JLabel titleLabel = new JLabel("Task Manager");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 32));
+        titleLabel.setFont(new Font(DEFAULT_FONT_NAME, Font.BOLD, 32));
         titleLabel.setForeground(Color.WHITE);
 
         JLabel subtitleLabel = new JLabel("Organize suas tarefas com eficiência");
-        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        subtitleLabel.setFont(new Font(DEFAULT_FONT_NAME, Font.PLAIN, 14));
         subtitleLabel.setForeground(new Color(148, 163, 184));
 
         JPanel titleContainer = new JPanel();
@@ -168,11 +177,11 @@ public class Main {
         searchPanel.setBackground(CARD_BG);
 
         JLabel searchLabel = new JLabel("Pesquisar");
-        searchLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        searchLabel.setFont(new Font(DEFAULT_FONT_NAME, Font.BOLD, 14));
         searchLabel.setForeground(TEXT_PRIMARY);
 
         searchField = new JTextField(30);
-        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchField.setFont(new Font(DEFAULT_FONT_NAME, Font.PLAIN, 14));
         searchField.setForeground(TEXT_PRIMARY);
         searchField.setBackground(BACKGROUND);
         searchField.setBorder(BorderFactory.createCompoundBorder(
@@ -180,12 +189,13 @@ public class Main {
                 new EmptyBorder(10, 16, 10, 16)
         ));
 
-        searchField.setText("Buscar por descrição, responsável ou ID...");
+        searchField.setText(DEFAULT_SEARCH_STRING);
+
         searchField.setForeground(TEXT_SECONDARY);
         searchField.addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
-                if (searchField.getText().equals("Buscar por descrição, responsável ou ID...")) {
+                if (searchField.getText().equals(DEFAULT_SEARCH_STRING)) {
                     searchField.setText("");
                     searchField.setForeground(TEXT_PRIMARY);
                 }
@@ -194,7 +204,7 @@ public class Main {
             @Override
             public void focusLost(FocusEvent e) {
                 if (searchField.getText().isEmpty()) {
-                    searchField.setText("Buscar por descrição, responsável ou ID...");
+                    searchField.setText(DEFAULT_SEARCH_STRING);
                     searchField.setForeground(TEXT_SECONDARY);
                 }
             }
@@ -225,12 +235,12 @@ public class Main {
         statusPanel.setBackground(CARD_BG);
 
         JLabel statusLabel = new JLabel("Status");
-        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        statusLabel.setFont(new Font(DEFAULT_FONT_NAME, Font.BOLD, 14));
         statusLabel.setForeground(TEXT_PRIMARY);
 
-        String[] statusOptions = {"TODAS", "PENDENTE", "COMPLETA", "INCOMPLETA", "ATRASADA"};
+        String[] statusOptions = {"Todas", "Pendente", DEFAULT_COMPLETE_STRING, "Incompleta", "Atrasada"};
         statusFilterCombo = new JComboBox<>(statusOptions);
-        statusFilterCombo.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        statusFilterCombo.setFont(new Font(DEFAULT_FONT_NAME, Font.PLAIN, 14));
         statusFilterCombo.setPreferredSize(new Dimension(160, 44));
         statusFilterCombo.setBackground(BACKGROUND);
         statusFilterCombo.setForeground(TEXT_PRIMARY);
@@ -254,17 +264,15 @@ public class Main {
     }
 
     private void clearAllFilters() {
-        searchField.setText("Buscar por descrição, responsável ou ID...");
+        searchField.setText(DEFAULT_SEARCH_STRING);
         searchField.setForeground(TEXT_SECONDARY);
         statusFilterCombo.setSelectedIndex(0);
-        currentStatusFilter = "TODAS";
-        currentSearchText = "";
         applyFilters();
     }
 
     private void applyFilters() {
         String text = searchField.getText().trim();
-        if (!text.equals("Buscar por descrição, responsável ou ID...")) {
+        if (!text.equals(DEFAULT_SEARCH_STRING)) {
             currentSearchText = text.toLowerCase();
         } else {
             currentSearchText = "";
@@ -290,12 +298,12 @@ public class Main {
 
     private void handleUpdateTasks() {
         taskManager.updateTasks();
-        showModernDialog("Tarefas atualizadas com sucesso!", "Sucesso", JOptionPane.INFORMATION_MESSAGE);
+        showModernDialog("Tarefas atualizadas com sucesso!", DEFAULT_SUCCESS_STRING, JOptionPane.INFORMATION_MESSAGE);
         refreshTasks();
     }
 
     private void startAutoUpdateScheduler() {
-        System.out.println("[Tasks] Iniciando agendador de atualização automática...");
+        log.info("[Tasks] Starting auto update scheduler");
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleAtFixedRate(this::refreshTasks, 0, 1, TimeUnit.MINUTES);
     }
@@ -326,7 +334,7 @@ public class Main {
 
     private JTextField createModernTextField() {
         JTextField field = new JTextField(20);
-        field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        field.setFont(new Font(DEFAULT_FONT_NAME, Font.PLAIN, 14));
         field.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(BORDER, 1),
                 new EmptyBorder(8, 12, 8, 12)
@@ -347,7 +355,7 @@ public class Main {
         try {
             int days = Integer.parseInt(daysStr);
             taskManager.createTask(description, owner, days);
-            showModernDialog("Tarefa criada com sucesso!", "Sucesso", JOptionPane.INFORMATION_MESSAGE);
+            showModernDialog("Tarefa criada com sucesso!", DEFAULT_SUCCESS_STRING, JOptionPane.INFORMATION_MESSAGE);
             refreshTasks();
         } catch (NumberFormatException ex) {
             showModernDialog("Prazo deve ser um número inteiro!", "Erro", JOptionPane.ERROR_MESSAGE);
@@ -377,7 +385,7 @@ public class Main {
         return tasks.stream()
                 .filter(this::matchesStatusFilter)
                 .filter(this::matchesSearchFilter)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private boolean matchesStatusFilter(Task task) {
@@ -407,17 +415,17 @@ public class Main {
         emptyPanel.setBorder(new EmptyBorder(60, 0, 60, 0));
 
         JLabel emptyIcon = new JLabel("✓");
-        emptyIcon.setFont(new Font("Segoe UI", Font.PLAIN, 72));
+        emptyIcon.setFont(new Font(DEFAULT_FONT_NAME, Font.PLAIN, 72));
         emptyIcon.setForeground(TEXT_SECONDARY);
         emptyIcon.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JLabel emptyTitle = new JLabel("Nenhuma tarefa encontrada");
-        emptyTitle.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        emptyTitle.setFont(new Font(DEFAULT_FONT_NAME, Font.BOLD, 20));
         emptyTitle.setForeground(TEXT_PRIMARY);
         emptyTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JLabel emptyDesc = new JLabel("Tente ajustar os filtros ou criar uma nova tarefa");
-        emptyDesc.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        emptyDesc.setFont(new Font(DEFAULT_FONT_NAME, Font.PLAIN, 14));
         emptyDesc.setForeground(TEXT_SECONDARY);
         emptyDesc.setAlignmentX(Component.CENTER_ALIGNMENT);
 
@@ -456,7 +464,7 @@ public class Main {
         infoPanel.setBackground(CARD_BG);
 
         JLabel titleLabel = new JLabel(task.getDescription());
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setFont(new Font(DEFAULT_FONT_NAME, Font.BOLD, 18));
         titleLabel.setForeground(TEXT_PRIMARY);
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
@@ -475,14 +483,14 @@ public class Main {
         datesPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel startDate = new JLabel("Início: " + formatDate(task.getStartDate()));
-        startDate.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        startDate.setFont(new Font(DEFAULT_FONT_NAME, Font.PLAIN, 13));
         startDate.setForeground(TEXT_SECONDARY);
 
         JLabel separator = new JLabel(" • ");
         separator.setForeground(TEXT_SECONDARY);
 
         JLabel endDate = new JLabel("Prazo: " + formatDate(task.getExpiryDate()));
-        endDate.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        endDate.setFont(new Font(DEFAULT_FONT_NAME, Font.PLAIN, 13));
         endDate.setForeground(TEXT_SECONDARY);
 
         datesPanel.add(startDate);
@@ -500,7 +508,7 @@ public class Main {
 
     private JLabel createMetaBadge(String text, Color bgColor) {
         JLabel badge = new JLabel(text);
-        badge.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        badge.setFont(new Font(DEFAULT_FONT_NAME, Font.BOLD, 12));
         badge.setForeground(TEXT_PRIMARY);
         badge.setOpaque(true);
         badge.setBackground(bgColor);
@@ -518,7 +526,7 @@ public class Main {
         );
 
         JLabel badge = new JLabel(status.toUpperCase());
-        badge.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        setDefaultFont(badge);
         badge.setForeground(statusColor);
         badge.setOpaque(true);
         badge.setBackground(bgColor);
@@ -575,13 +583,13 @@ public class Main {
 
         if (newDescription != null && !newDescription.trim().isEmpty()) {
             taskManager.updateTaskDescription(task.getId(), newDescription.trim());
-            showModernDialog("Descrição atualizada!", "Sucesso", JOptionPane.INFORMATION_MESSAGE);
+            showModernDialog("Descrição atualizada!", DEFAULT_SUCCESS_STRING, JOptionPane.INFORMATION_MESSAGE);
             refreshTasks();
         }
     }
 
     private void handleEditStatus(Task task) {
-        String[] options = {"Pendente", "Completa", "Incompleta", "Atrasada"};
+        String[] options = {"Pendente", DEFAULT_COMPLETE_STRING, "Incompleta", "Atrasada"};
         String newStatus = (String) JOptionPane.showInputDialog(
                 frame,
                 "Escolha o novo status:",
@@ -594,7 +602,7 @@ public class Main {
 
         if (newStatus != null) {
             taskManager.updateTaskStatus(task.getId(), newStatus);
-            showModernDialog("Status atualizado!", "Sucesso", JOptionPane.INFORMATION_MESSAGE);
+            showModernDialog("Status atualizado!", DEFAULT_SUCCESS_STRING, JOptionPane.INFORMATION_MESSAGE);
             refreshTasks();
         }
     }
@@ -609,8 +617,8 @@ public class Main {
         );
 
         if (option == JOptionPane.YES_OPTION) {
-            taskManager.updateTaskStatus(task.getId(), "Completa");
-            System.out.println("[Tasks] Task com ID: " + task.getId() + " foi completa.");
+            taskManager.updateTaskStatus(task.getId(), DEFAULT_COMPLETE_STRING);
+            log.info("[Tasks] Task with id: {} has been completed.", task.getId());
             refreshTasks();
         }
     }
@@ -626,14 +634,19 @@ public class Main {
 
         if (option == JOptionPane.YES_OPTION) {
             taskManager.deleteTask(task.getId());
-            System.out.println("[Tasks] Task com ID: " + task.getId() + " foi deletada.");
+            log.info("[Tasks] Task with ID: {} has been deleted.", task.getId());
+
             refreshTasks();
         }
     }
 
+    private void setDefaultFont(JLabel label) {
+        label.setFont(new Font(DEFAULT_FONT_NAME, Font.BOLD, 12));
+    }
+
     private JButton createModernButton(String text, Color bgColor, Color hoverColor, ActionListener listener) {
         JButton button = new JButton(text) {
-            private Color currentBg = bgColor;
+            private final Color currentBg = bgColor;
 
             @Override
             protected void paintComponent(Graphics g) {
@@ -649,14 +662,9 @@ public class Main {
                 g2.drawString(getText(), x, y);
                 g2.dispose();
             }
-
-            public void setCurrentBg(Color color) {
-                this.currentBg = color;
-                repaint();
-            }
         };
 
-        button.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        button.setFont(new Font(DEFAULT_FONT_NAME, Font.BOLD, 13));
         button.setForeground(Color.WHITE);
         button.setBackground(bgColor);
         button.setFocusPainted(false);
@@ -666,10 +674,12 @@ public class Main {
         button.addActionListener(listener);
 
         button.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
             public void mouseEntered(java.awt.event.MouseEvent evt) {
                 ((JButton) evt.getSource()).setBackground(hoverColor);
             }
 
+            @Override
             public void mouseExited(java.awt.event.MouseEvent evt) {
                 ((JButton) evt.getSource()).setBackground(bgColor);
             }

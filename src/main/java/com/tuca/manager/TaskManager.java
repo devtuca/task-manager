@@ -3,6 +3,8 @@ package com.tuca.manager;
 import com.tuca.connection.DatabaseManager;
 import com.tuca.model.Task;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -13,6 +15,7 @@ public class TaskManager {
 
     private final DatabaseManager db;
     private List<Task> tasks = new ArrayList<>();
+    private final Logger log = LoggerFactory.getLogger(TaskManager.class);
 
     public List<Task> loadAllTasks() {
         try {
@@ -28,8 +31,7 @@ public class TaskManager {
                     )
             );
         } catch (SQLException e) {
-            System.err.println("[Tasks] Failed to load tasks: " + e.getMessage());
-            e.printStackTrace();
+            log.error("[Tasks] Failed to load tasks: {}", e.getMessage());
         }
         return tasks;
     }
@@ -38,7 +40,7 @@ public class TaskManager {
         if (description == null || description.isEmpty() ||
                 ownerName == null || ownerName.isEmpty() ||
                 daysToExpire <= 0) {
-            System.out.println("[Tasks] Please provide valid parameters.");
+            log.error("[Tasks] Invalid parameters passed to createTask");
             return;
         }
 
@@ -54,21 +56,22 @@ public class TaskManager {
                     expiryDateMillis,
                     "Pendente"
             );
-            System.out.println("[Tasks] Task created successfully.");
+            log.info("[Tasks] Created task: {}", description);
+
         } catch (SQLException e) {
-            System.err.println("[Tasks] Task creation failed: " + e.getMessage());
-            e.printStackTrace();
+            log.error("[Tasks] Failed to create task: {}", e.getMessage());
         }
     }
 
     public void updateTasks() {
-        System.out.println("[Tasks] Updating tasks...");
+        log.info("[Tasks] Updating tasks");
         loadAllTasks().forEach(task -> {
             long now = System.currentTimeMillis();
             if (task.getStatus().equalsIgnoreCase("Completa")) return;
             if (task.getExpiryDate() < now) {
                 updateTaskStatus(task.getId(), "Atrasada");
-                System.out.println("[Updater] Tarefa ID " + task.getId() + " marcada como ATRASADA");
+                log.info("[Tasks] Updated task: {}", task.getId());
+
             }
         });
 
@@ -76,7 +79,7 @@ public class TaskManager {
 
     public void updateTaskDescription(int taskID, String description) {
         if (description == null || description.isEmpty()) {
-            System.out.println("[Tasks] Invalid description. Please provide a valid description.");
+            log.error("[Tasks] Invalid parameters passed to updateTaskDescription");
             return;
         }
 
@@ -86,10 +89,9 @@ public class TaskManager {
                     description,
                     taskID
             );
-            System.out.println("[Tasks] Task description updated successfully.");
+            log.info("[Tasks] Updated task description: {}", description);
         } catch (SQLException e) {
-            System.err.println("[Tasks] Failed to update task description: " + e.getMessage());
-            e.printStackTrace();
+            log.error("[Tasks] Failed to update task description: {}", e.getMessage());
         }
     }
 
@@ -99,7 +101,7 @@ public class TaskManager {
                         status.equalsIgnoreCase("COMPLETA") ||
                         status.equalsIgnoreCase("INCOMPLETA") ||
                         status.equalsIgnoreCase("ATRASADA"))) {
-            System.out.println("[Tasks] Invalid status. Only allowed: PENDENTE, COMPLETA, INCOMPLETA, ATRASADA.");
+            log.error("[Tasks] Invalid parameters passed to updateTaskStatus, only alloweds: PENDENTE, COMPLETA, INCOMPLETA, ATRASADA");
             return;
         }
 
@@ -109,10 +111,10 @@ public class TaskManager {
                     status,
                     taskID
             );
-            System.out.println("[Tasks] Task status updated successfully.");
+            log.info("[Tasks] Updated task status: {}", status);
+
         } catch (SQLException e) {
-            System.err.println("[Tasks] Failed to update task status: " + e.getMessage());
-            e.printStackTrace();
+            log.error("[Tasks] Failed to update task status: {}", e.getMessage());
         }
     }
 
@@ -122,10 +124,9 @@ public class TaskManager {
                     "DELETE FROM tarefas WHERE id = ?",
                     taskID
             );
-            System.out.println("[Tasks] Task deleted successfully.");
+            log.info("[Tasks] Deleted task: {}", taskID);
         } catch (SQLException e) {
-            System.err.println("[Tasks] Failed to delete task: " + e.getMessage());
-            e.printStackTrace();
+            log.error("[Tasks] Failed to delete task: {}", e.getMessage());
         }
     }
 }

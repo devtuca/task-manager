@@ -11,7 +11,7 @@ repositories {
 
 dependencies {
     implementation("mysql:mysql-connector-java:8.0.33")
-
+    implementation("ch.qos.logback:logback-classic:1.4.14")
     compileOnly("org.projectlombok:lombok:1.18.42")
     annotationProcessor("org.projectlombok:lombok:1.18.42")
 
