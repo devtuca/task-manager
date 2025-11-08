@@ -10,14 +10,18 @@ repositories {
 }
 
 dependencies {
-    implementation("mysql:mysql-connector-java:8.0.33")
-    implementation("ch.qos.logback:logback-classic:1.4.14")
-    compileOnly("org.projectlombok:lombok:1.18.42")
-    annotationProcessor("org.projectlombok:lombok:1.18.42")
 
-    testImplementation(platform("org.junit:junit-bom:5.10.0"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    implementation(libs.slf4j.simple)
+    implementation(libs.kafka.clients) {
+        exclude(group = "org.slf4j")
+    }
+    implementation(libs.mysql.connector)
+    implementation(libs.org.json)
+    compileOnly(libs.lombok)
+    annotationProcessor(libs.lombok)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 tasks.test {

@@ -1,26 +1,32 @@
 package com.tuca;
 
-import com.tuca.connection.DatabaseManager;
+import com.tuca.manager.CacheManager;
+import com.tuca.manager.DatabaseManager;
+import com.tuca.manager.QueueManager;
 import com.tuca.manager.TaskManager;
 import com.tuca.model.Task;
+import com.tuca.service.ConsumerService;
+import com.tuca.service.ProducerService;
+import lombok.SneakyThrows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
-import java.awt.event.ActionListener;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
+import java.awt.event.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 public class Main {
 
     private final DatabaseManager dbManager;
+    private final ProducerService producerService;
     private final TaskManager taskManager;
+    private final CacheManager cacheManager;
     private final JFrame frame;
     private final JPanel taskPanel;
     private final JScrollPane scrollPane;
@@ -53,9 +59,19 @@ public class Main {
     private static final Color BORDER = new Color(226, 232, 240);
 
     public Main() {
+
         this.dbManager = new DatabaseManager();
-        dbManager.startConnection();
-        this.taskManager = new TaskManager(dbManager);
+        this.cacheManager = new CacheManager(dbManager);
+        this.taskManager = new TaskManager(dbManager, cacheManager);
+        QueueManager queueManager = new QueueManager();
+        this.producerService = new ProducerService();
+        ConsumerService consumerService = new ConsumerService(queueManager, cacheManager, taskManager);
+
+        cacheManager.load();
+        dbManager.initConnection();
+        dbManager.initializeSchema();
+        consumerService.init();
+        taskManager.startAutoUpdateScheduler();
 
         this.frame = new JFrame("Task Manager");
         this.taskPanel = createTasksContainerPanel();
@@ -64,7 +80,7 @@ public class Main {
         setupMainFrame();
         buildUI();
         refreshTasks();
-        startAutoUpdateScheduler();
+
     }
 
     private void setupMainFrame() {
@@ -72,18 +88,22 @@ public class Main {
         frame.setSize(1100, 700);
         frame.setLayout(new BorderLayout(0, 0));
         frame.getContentPane().setBackground(BACKGROUND);
-        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+        frame.addWindowListener(new WindowAdapter() {
             @Override
-            public void windowClosing(java.awt.event.WindowEvent e) {
+            public void windowClosing(WindowEvent e) {
                 handleApplicationClose();
             }
         });
     }
 
+    @SneakyThrows
     private void handleApplicationClose() {
+
+
+        producerService.sendEvent("CLOSING_PROGRAM");
         log.info("[Tasks] Trying close application.");
         refreshTasks();
-        dbManager.closeConnection();
+        dbManager.close();
         frame.dispose();
         log.info("[Tasks] Application closed");
         System.exit(0);
@@ -158,10 +178,7 @@ public class Main {
     private JPanel createModernFilterPanel() {
         JPanel filterPanel = new JPanel(new BorderLayout(20, 0));
         filterPanel.setBackground(CARD_BG);
-        filterPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER, 1, true),
-                new EmptyBorder(20, 25, 20, 25)
-        ));
+        filterPanel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(BORDER, 1, true), new EmptyBorder(20, 25, 20, 25)));
 
         JPanel leftPanel = createModernSearchPanel();
         JPanel rightPanel = createModernStatusFilterPanel();
@@ -184,10 +201,7 @@ public class Main {
         searchField.setFont(new Font(DEFAULT_FONT_NAME, Font.PLAIN, 14));
         searchField.setForeground(TEXT_PRIMARY);
         searchField.setBackground(BACKGROUND);
-        searchField.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER, 1, true),
-                new EmptyBorder(10, 16, 10, 16)
-        ));
+        searchField.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(BORDER, 1, true), new EmptyBorder(10, 16, 10, 16)));
 
         searchField.setText(DEFAULT_SEARCH_STRING);
 
@@ -210,16 +224,16 @@ public class Main {
             }
         });
 
-        searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void changedUpdate(DocumentEvent e) {
                 applyFilters();
             }
 
-            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+            public void removeUpdate(DocumentEvent e) {
                 applyFilters();
             }
 
-            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+            public void insertUpdate(DocumentEvent e) {
                 applyFilters();
             }
         });
@@ -244,10 +258,7 @@ public class Main {
         statusFilterCombo.setPreferredSize(new Dimension(160, 44));
         statusFilterCombo.setBackground(BACKGROUND);
         statusFilterCombo.setForeground(TEXT_PRIMARY);
-        statusFilterCombo.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER, 1, true),
-                new EmptyBorder(0, 12, 0, 12)
-        ));
+        statusFilterCombo.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(BORDER, 1, true), new EmptyBorder(0, 12, 0, 12)));
         statusFilterCombo.addActionListener(e -> {
             currentStatusFilter = (String) statusFilterCombo.getSelectedItem();
             applyFilters();
@@ -297,17 +308,13 @@ public class Main {
     }
 
     private void handleUpdateTasks() {
-        taskManager.updateTasks();
-        showModernDialog("Tarefas atualizadas com sucesso!", DEFAULT_SUCCESS_STRING, JOptionPane.INFORMATION_MESSAGE);
         refreshTasks();
+        showModernDialog("Tarefas atualizadas com sucesso!", DEFAULT_SUCCESS_STRING, JOptionPane.INFORMATION_MESSAGE);
+
     }
 
-    private void startAutoUpdateScheduler() {
-        log.info("[Tasks] Starting auto update scheduler");
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleAtFixedRate(this::refreshTasks, 0, 1, TimeUnit.MINUTES);
-    }
 
+    @SneakyThrows
     private void createNewTask() {
         JPanel panel = new JPanel(new GridLayout(3, 2, 10, 15));
         panel.setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -324,24 +331,22 @@ public class Main {
         panel.add(new JLabel("Prazo (dias):"));
         panel.add(daysField);
 
-        int option = JOptionPane.showConfirmDialog(frame, panel, "Criar Nova Tarefa",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        int option = JOptionPane.showConfirmDialog(frame, panel, "Criar Nova Tarefa", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
         if (option == JOptionPane.OK_OPTION) {
             handleTaskCreation(descField.getText(), ownerField.getText(), daysField.getText());
+
         }
     }
 
     private JTextField createModernTextField() {
         JTextField field = new JTextField(20);
         field.setFont(new Font(DEFAULT_FONT_NAME, Font.PLAIN, 14));
-        field.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER, 1),
-                new EmptyBorder(8, 12, 8, 12)
-        ));
+        field.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(BORDER, 1), new EmptyBorder(8, 12, 8, 12)));
         return field;
     }
 
+    @SneakyThrows
     private void handleTaskCreation(String description, String owner, String daysStr) {
         description = description.trim();
         owner = owner.trim();
@@ -353,8 +358,10 @@ public class Main {
         }
 
         try {
+
             int days = Integer.parseInt(daysStr);
-            taskManager.createTask(description, owner, days);
+            int taskID = taskManager.create(description, owner, days);
+            producerService.sendEvent("CREATE_TASK", String.valueOf(taskID));
             showModernDialog("Tarefa criada com sucesso!", DEFAULT_SUCCESS_STRING, JOptionPane.INFORMATION_MESSAGE);
             refreshTasks();
         } catch (NumberFormatException ex) {
@@ -365,7 +372,7 @@ public class Main {
     public void refreshTasks() {
         SwingUtilities.invokeLater(() -> {
             taskPanel.removeAll();
-            List<Task> tasks = taskManager.loadAllTasks();
+            List<Task> tasks = cacheManager.getTasks();
 
             List<Task> filteredTasks = filterTasks(tasks);
 
@@ -382,23 +389,17 @@ public class Main {
     }
 
     private List<Task> filterTasks(List<Task> tasks) {
-        return tasks.stream()
-                .filter(this::matchesStatusFilter)
-                .filter(this::matchesSearchFilter)
-                .toList();
+        return tasks.stream().filter(this::matchesStatusFilter).filter(this::matchesSearchFilter).toList();
     }
 
     private boolean matchesStatusFilter(Task task) {
-        return currentStatusFilter.equals("TODAS") ||
-                task.getStatus().trim().equalsIgnoreCase(currentStatusFilter);
+        return currentStatusFilter.equals("TODAS") || task.getStatus().trim().equalsIgnoreCase(currentStatusFilter);
     }
 
     private boolean matchesSearchFilter(Task task) {
         if (currentSearchText.isEmpty()) return true;
 
-        return task.getDescription().toLowerCase().contains(currentSearchText) ||
-                task.getOwnerName().toLowerCase().contains(currentSearchText) ||
-                String.valueOf(task.getId()).contains(currentSearchText);
+        return task.getDescription().toLowerCase().contains(currentSearchText) || task.getOwnerName().toLowerCase().contains(currentSearchText) || String.valueOf(task.getId()).contains(currentSearchText);
     }
 
     private void displayTasks(List<Task> tasks) {
@@ -441,10 +442,7 @@ public class Main {
     private JPanel createModernTaskCard(Task task) {
         JPanel card = new JPanel(new BorderLayout(20, 0));
         card.setBackground(CARD_BG);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER, 1, true),
-                new EmptyBorder(20, 24, 20, 24)
-        ));
+        card.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(BORDER, 1, true), new EmptyBorder(20, 24, 20, 24)));
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 180));
 
         JPanel statusIndicator = new JPanel();
@@ -518,12 +516,7 @@ public class Main {
 
     private JLabel createStatusBadge(String status) {
         Color statusColor = getStatusColor(status);
-        Color bgColor = new Color(
-                statusColor.getRed(),
-                statusColor.getGreen(),
-                statusColor.getBlue(),
-                30
-        );
+        Color bgColor = new Color(statusColor.getRed(), statusColor.getGreen(), statusColor.getBlue(), 30);
 
         JLabel badge = new JLabel(status.toUpperCase());
         setDefaultFont(badge);
@@ -570,19 +563,12 @@ public class Main {
         return buttonPanel;
     }
 
+    @SneakyThrows
     private void handleEditDescription(Task task) {
-        String newDescription = (String) JOptionPane.showInputDialog(
-                frame,
-                "Nova descrição:",
-                "Editar Tarefa",
-                JOptionPane.PLAIN_MESSAGE,
-                null,
-                null,
-                task.getDescription()
-        );
+        String newDescription = (String) JOptionPane.showInputDialog(frame, "Nova descrição:", "Editar Tarefa", JOptionPane.PLAIN_MESSAGE, null, null, task.getDescription());
 
         if (newDescription != null && !newDescription.trim().isEmpty()) {
-            taskManager.updateTaskDescription(task.getId(), newDescription.trim());
+            producerService.sendEvent(task, "UPDATE_DESCRIPTION", newDescription.trim());
             showModernDialog("Descrição atualizada!", DEFAULT_SUCCESS_STRING, JOptionPane.INFORMATION_MESSAGE);
             refreshTasks();
         }
@@ -590,52 +576,32 @@ public class Main {
 
     private void handleEditStatus(Task task) {
         String[] options = {"Pendente", DEFAULT_COMPLETE_STRING, "Incompleta", "Atrasada"};
-        String newStatus = (String) JOptionPane.showInputDialog(
-                frame,
-                "Escolha o novo status:",
-                "Alterar Status",
-                JOptionPane.PLAIN_MESSAGE,
-                null,
-                options,
-                task.getStatus()
-        );
+        String newStatus = (String) JOptionPane.showInputDialog(frame, "Escolha o novo status:", "Alterar Status", JOptionPane.PLAIN_MESSAGE, null, options, task.getStatus());
 
         if (newStatus != null) {
-            taskManager.updateTaskStatus(task.getId(), newStatus);
+            producerService.sendEvent(task, "UPDATE_STATUS", newStatus.trim());
             showModernDialog("Status atualizado!", DEFAULT_SUCCESS_STRING, JOptionPane.INFORMATION_MESSAGE);
             refreshTasks();
         }
     }
 
     private void handleCompleteTask(Task task) {
-        int option = JOptionPane.showConfirmDialog(
-                frame,
-                "Deseja realmente completar esta tarefa?",
-                "Confirmação",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE
-        );
+        int option = JOptionPane.showConfirmDialog(frame, "Deseja realmente completar esta tarefa?", "Confirmação", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
 
         if (option == JOptionPane.YES_OPTION) {
-            taskManager.updateTaskStatus(task.getId(), DEFAULT_COMPLETE_STRING);
+            producerService.sendEvent(task, "UPDATE_STATUS", DEFAULT_COMPLETE_STRING);
+
             log.info("[Tasks] Task with id: {} has been completed.", task.getId());
             refreshTasks();
         }
     }
 
     private void handleDeleteTask(Task task) {
-        int option = JOptionPane.showConfirmDialog(
-                frame,
-                "Deseja realmente deletar esta tarefa? Esta ação não pode ser desfeita.",
-                "Confirmação",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.WARNING_MESSAGE
-        );
+        int option = JOptionPane.showConfirmDialog(frame, "Deseja realmente deletar esta tarefa? Esta ação não pode ser desfeita.", "Confirmação", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 
         if (option == JOptionPane.YES_OPTION) {
-            taskManager.deleteTask(task.getId());
+            producerService.sendEvent(task, "DELETE_TASK", String.valueOf(task.getId()));
             log.info("[Tasks] Task with ID: {} has been deleted.", task.getId());
-
             refreshTasks();
         }
     }
@@ -673,14 +639,14 @@ public class Main {
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.addActionListener(listener);
 
-        button.addMouseListener(new java.awt.event.MouseAdapter() {
+        button.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseEntered(java.awt.event.MouseEvent evt) {
+            public void mouseEntered(MouseEvent evt) {
                 ((JButton) evt.getSource()).setBackground(hoverColor);
             }
 
             @Override
-            public void mouseExited(java.awt.event.MouseEvent evt) {
+            public void mouseExited(MouseEvent evt) {
                 ((JButton) evt.getSource()).setBackground(bgColor);
             }
         });
@@ -701,8 +667,8 @@ public class Main {
     }
 
     private String formatDate(long timestamp) {
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm");
-        return sdf.format(new java.util.Date(timestamp));
+        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+        return sdf.format(new Date(timestamp));
     }
 
     private void showModernDialog(String message, String title, int messageType) {
