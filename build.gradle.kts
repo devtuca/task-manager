@@ -1,6 +1,12 @@
+import jdk.tools.jlink.resources.plugins
+import java.lang.Runtime.version
+
 plugins {
     id("java")
+    id("org.springframework.boot") version "3.3.5"
+    id("io.spring.dependency-management") version "1.1.6"
 }
+
 
 group = "com.tuca"
 version = "1.0-SNAPSHOT"
@@ -11,7 +17,8 @@ repositories {
 
 dependencies {
 
-    implementation(libs.slf4j.simple)
+    implementation(libs.spring.boot.starter)
+    implementation(libs.spring.boot.jpa)
     implementation(libs.kafka.clients) {
         exclude(group = "org.slf4j")
     }

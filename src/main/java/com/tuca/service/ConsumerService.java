@@ -1,11 +1,8 @@
 package com.tuca.service;
 
-import com.tuca.manager.CacheManager;
 import com.tuca.manager.QueueManager;
-import com.tuca.manager.TaskManager;
 import com.tuca.model.Task;
-import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
+import jakarta.annotation.PostConstruct;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -14,22 +11,36 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Properties;
 
-@RequiredArgsConstructor
+@Service
 public class ConsumerService {
 
     private final Logger log = LoggerFactory.getLogger(ConsumerService.class);
     private KafkaConsumer<String, String> consumer;
     private final QueueManager queueManager;
-    private final CacheManager cacheManager;
-    private final TaskManager taskManager;
+    private final TaskService taskService;
     private volatile boolean listening = false;
 
+    @Autowired
+    public ConsumerService(QueueManager queueManager, TaskService taskService) {
+        this.queueManager = queueManager;
+        this.taskService = taskService;
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void onAppReady() {
+        init();
+        log.info("[Tasks] Application ready, tasks loaded");
+    }
 
     public void init() {
         Properties props = new Properties();
@@ -42,8 +53,8 @@ public class ConsumerService {
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "1");
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "5");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
 
         consumer = new KafkaConsumer<>(props);
         consumer.subscribe(Collections.singletonList("swing-topic"));
@@ -52,14 +63,15 @@ public class ConsumerService {
     }
 
     private void processRecord(ConsumerRecord<String, String> recordMessage) {
+
         try {
             JSONObject json = new JSONObject(recordMessage.value());
             String event = json.optString("event");
 
             if (!isValidEvent(event)) return;
 
-            int taskID = json.optInt("taskID", -1);
-            Task task = cacheManager.getByID(taskID);
+            long taskID = json.optLong("taskID");
+            Task task = taskService.getByID(taskID);
             handleEvent(event, json, task);
 
         } catch (Exception e) {
@@ -78,20 +90,21 @@ public class ConsumerService {
         String newValue = json.optString("newValue", null);
 
         switch (event.toUpperCase()) {
-            case "UPDATE_DESCRIPTION" -> cacheManager.update("DESCRIPTION", task, newValue);
-            case "UPDATE_STATUS" -> cacheManager.update("STATUS", task, newValue);
-            case "CREATE_TASK" -> taskManager.save(task);
+            case "UPDATE_DESCRIPTION" -> taskService.update("DESCRIPTION", task, newValue);
+            case "UPDATE_STATUS" -> taskService.update("STATUS", task, newValue);
+            case "CREATE_TASK" -> taskService.create(task);
             case "DELETE_TASK" -> {
-                cacheManager.remove(task);
-                taskManager.delete(task);
+                log.info("testando..");
+                taskService.delete(task.getId());
             }
-            case "CLOSING_PROGRAM" -> taskManager.saveAll();
+            case "CLOSING_PROGRAM" -> taskService.saveAll();
             default -> consumer.commitAsync();
+
         }
+        consumer.commitAsync();
     }
 
-
-    @SneakyThrows
+    @PostConstruct
     public void startListening() {
         if (consumer == null || listening) return;
 

@@ -8,18 +8,21 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.InitializingBean;
+import org.springframework.stereotype.Service;
 
 import java.util.Properties;
-import java.util.UUID;
 
-public class ProducerService {
+@Service
+public class ProducerService implements InitializingBean {
 
     private KafkaProducer<String, String> producer;
     private final Logger log = LoggerFactory.getLogger(ProducerService.class);
-    private final JSONObject jsonObject = new JSONObject();
 
-    public ProducerService() {
+    @Override
+    public void afterPropertiesSet() {
         initProducer();
+        log.info("[Queue] Kafka Producer initialized successfully");
     }
 
     private void initProducer() {
@@ -29,17 +32,8 @@ public class ProducerService {
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         props.put(ProducerConfig.ACKS_CONFIG, "all");
 
-
         producer = new KafkaProducer<>(props);
         log.info("[Queue] Kafka Producer Started");
-    }
-
-    public void sendMessage(String message) {
-
-        jsonObject.put("appId", UUID.randomUUID().toString());
-        jsonObject.put("message", message);
-        send(jsonObject);
-
     }
 
     public void sendEvent(Task task, String eventName, String newValue) {
@@ -53,7 +47,7 @@ public class ProducerService {
         send(createBaseEvent(eventName));
     }
 
-    public void sendEvent(String eventName, String taskID) {
+    public void sendEvent(String eventName, long taskID) {
         JSONObject event = createBaseEvent(eventName);
         event.put("taskID", taskID);
         send(event);
@@ -66,9 +60,9 @@ public class ProducerService {
     }
 
     private void send(Object payload) {
+        ProducerRecord<String, String> recordProducer = new ProducerRecord<>("swing-topic", payload.toString());
 
-        ProducerRecord<String, String> stringProducerRecord = new ProducerRecord<>("swing-topic", jsonObject.toString());
-        producer.send(stringProducerRecord, (metadata, exception) -> {
+        producer.send(recordProducer, (metadata, exception) -> {
             if (exception != null) {
                 log.error("[Queue] Kafka Producer Send Error", exception);
             } else {

@@ -5,8 +5,11 @@ mysql = "8.0.33"
 lombok = "1.18.42"
 json = "20250517"
 junit = "5.10.0"
+spring-boot = "3.3.5"
 
 [libraries]
+spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter", version.ref = "spring-boot" }
+spring-boot-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa", version.ref = "spring-boot" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafka" }
 mysql-connector = { module = "mysql:mysql-connector-java", version.ref = "mysql" }
@@ -15,3 +18,4 @@ org-json = { module = "org.json:json", version.ref = "json" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+

@@ -1,15 +1,15 @@
 package com.tuca;
 
-import com.tuca.manager.CacheManager;
-import com.tuca.manager.DatabaseManager;
-import com.tuca.manager.QueueManager;
-import com.tuca.manager.TaskManager;
 import com.tuca.model.Task;
-import com.tuca.service.ConsumerService;
 import com.tuca.service.ProducerService;
+import com.tuca.service.TaskService;
 import lombok.SneakyThrows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -21,16 +21,16 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 
-public class Main {
+@SpringBootApplication
+public class Main implements CommandLineRunner {
 
-    private final DatabaseManager dbManager;
-    private final ProducerService producerService;
-    private final TaskManager taskManager;
-    private final CacheManager cacheManager;
     private final JFrame frame;
     private final JPanel taskPanel;
     private final JScrollPane scrollPane;
 
+
+    private TaskService taskService;
+    private ProducerService producerService;
     private JTextField searchField;
     private JComboBox<String> statusFilterCombo;
 
@@ -40,7 +40,7 @@ public class Main {
     private static final String DEFAULT_COMPLETE_STRING = "Completa";
 
 
-    private String currentStatusFilter = "TODAS";
+    private String currentStatusFilter = "Todas";
     private String currentSearchText = "";
 
     private static final Logger log = LoggerFactory.getLogger(Main.class);
@@ -58,29 +58,17 @@ public class Main {
     private static final Color TEXT_SECONDARY = new Color(100, 116, 139);
     private static final Color BORDER = new Color(226, 232, 240);
 
-    public Main() {
 
-        this.dbManager = new DatabaseManager();
-        this.cacheManager = new CacheManager(dbManager);
-        this.taskManager = new TaskManager(dbManager, cacheManager);
-        QueueManager queueManager = new QueueManager();
-        this.producerService = new ProducerService();
-        ConsumerService consumerService = new ConsumerService(queueManager, cacheManager, taskManager);
-
-        cacheManager.load();
-        dbManager.initConnection();
-        dbManager.initializeSchema();
-        consumerService.init();
-        taskManager.startAutoUpdateScheduler();
-
+    @Autowired
+    public Main(TaskService taskService, ProducerService producerService) {
         this.frame = new JFrame("Task Manager");
         this.taskPanel = createTasksContainerPanel();
         this.scrollPane = createTasksScrollPane();
-
+        this.taskService = taskService;
+        this.producerService = producerService;
         setupMainFrame();
         buildUI();
         refreshTasks();
-
     }
 
     private void setupMainFrame() {
@@ -99,11 +87,8 @@ public class Main {
     @SneakyThrows
     private void handleApplicationClose() {
 
-
         producerService.sendEvent("CLOSING_PROGRAM");
-        log.info("[Tasks] Trying close application.");
         refreshTasks();
-        dbManager.close();
         frame.dispose();
         log.info("[Tasks] Application closed");
         System.exit(0);
@@ -335,7 +320,7 @@ public class Main {
 
         if (option == JOptionPane.OK_OPTION) {
             handleTaskCreation(descField.getText(), ownerField.getText(), daysField.getText());
-
+            refreshTasks();
         }
     }
 
@@ -347,12 +332,12 @@ public class Main {
     }
 
     @SneakyThrows
-    private void handleTaskCreation(String description, String owner, String daysStr) {
+    private void handleTaskCreation(String description, String ownerName, String daysStr) {
         description = description.trim();
-        owner = owner.trim();
+        ownerName = ownerName.trim();
         daysStr = daysStr.trim();
 
-        if (description.isEmpty() || owner.isEmpty()) {
+        if (description.isEmpty() || ownerName.isEmpty()) {
             showModernDialog("Preencha todos os campos!", "Erro", JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -360,8 +345,16 @@ public class Main {
         try {
 
             int days = Integer.parseInt(daysStr);
-            int taskID = taskManager.create(description, owner, days);
-            producerService.sendEvent("CREATE_TASK", String.valueOf(taskID));
+            long dayMillis = 86400000L;
+            long nowMillis = System.currentTimeMillis();
+            long expiryDateMillis = nowMillis + (dayMillis * days);
+
+            Task createdTask = taskService.create(new Task(ownerName, description, expiryDateMillis));
+
+
+            long taskID = createdTask.getId();
+
+            producerService.sendEvent("CREATE_TASK", taskID);
             showModernDialog("Tarefa criada com sucesso!", DEFAULT_SUCCESS_STRING, JOptionPane.INFORMATION_MESSAGE);
             refreshTasks();
         } catch (NumberFormatException ex) {
@@ -369,11 +362,13 @@ public class Main {
         }
     }
 
+    @SneakyThrows
     public void refreshTasks() {
+        Thread.sleep(100);
         SwingUtilities.invokeLater(() -> {
             taskPanel.removeAll();
-            List<Task> tasks = cacheManager.getTasks();
 
+            List<Task> tasks = taskService.getAll();
             List<Task> filteredTasks = filterTasks(tasks);
 
             if (filteredTasks.isEmpty()) {
@@ -393,7 +388,7 @@ public class Main {
     }
 
     private boolean matchesStatusFilter(Task task) {
-        return currentStatusFilter.equals("TODAS") || task.getStatus().trim().equalsIgnoreCase(currentStatusFilter);
+        return currentStatusFilter.equalsIgnoreCase("TODAS") || task.getStatus().trim().equalsIgnoreCase(currentStatusFilter);
     }
 
     private boolean matchesSearchFilter(Task task) {
@@ -590,12 +585,12 @@ public class Main {
 
         if (option == JOptionPane.YES_OPTION) {
             producerService.sendEvent(task, "UPDATE_STATUS", DEFAULT_COMPLETE_STRING);
-
             log.info("[Tasks] Task with id: {} has been completed.", task.getId());
             refreshTasks();
         }
     }
 
+    @SneakyThrows
     private void handleDeleteTask(Task task) {
         int option = JOptionPane.showConfirmDialog(frame, "Deseja realmente deletar esta tarefa? Esta ação não pode ser desfeita.", "Confirmação", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 
@@ -676,9 +671,17 @@ public class Main {
     }
 
     public static void main(String[] args) {
+        SpringApplication.run(Main.class, args);
+    }
+
+    @Override
+    public void run(String... args) {
         SwingUtilities.invokeLater(() -> {
-            Main app = new Main();
-            app.show();
+            setupMainFrame();
+            buildUI();
+            refreshTasks();
+            show();
         });
     }
+
 }
