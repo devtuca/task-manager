@@ -1,6 +1,3 @@
-import jdk.tools.jlink.resources.plugins
-import java.lang.Runtime.version
-
 plugins {
     id("java")
     id("org.springframework.boot") version "3.3.5"
@@ -16,7 +13,6 @@ repositories {
 }
 
 dependencies {
-
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.boot.jpa)
     implementation(libs.kafka.clients) {

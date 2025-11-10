@@ -68,10 +68,24 @@ public class TaskService {
         taskRepository.deleteById(taskID);
     }
 
-    @Scheduled(fixedRate = 30, timeUnit = TimeUnit.SECONDS)
+    @Scheduled(fixedRate = 40, timeUnit = TimeUnit.SECONDS)
     public void saveAll() {
         log.info("[Tasks] Saving all tasks");
         taskRepository.saveAll(taskCache.getTasks());
+    }
+
+    @Scheduled(fixedRate = 30, timeUnit = TimeUnit.SECONDS)
+    public void checkAll() {
+        log.info("[Tasks] Checking all tasks");
+        taskCache.getTasks().forEach(task -> {
+
+            if (task.getStatus().equalsIgnoreCase("Completa")) return;
+            if (task.getExpiryDate() < task.getStartDate()) {
+                log.info("[Tasks] A task have expired, changing status to ATRASADA.");
+                task.setStatus("Atrasada");
+                taskCache.save(task);
+            }
+        });
     }
 
     @PostConstruct
